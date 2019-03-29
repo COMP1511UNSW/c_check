@@ -1,0 +1,139 @@
+#!/web/cs2041/bin/python3.7.2
+import argparse, collections, re, sys
+import clang.cindex
+from clang.cindex import CursorKind as Kind
+
+# https://github.com/llvm-mirror/clang/blob/master/bindings/python/clang/cindex.py
+# https://www.pydoc.io/pypi/prophy-1.0.1/autoapi/parsers/clang/cindex/index.html#parsers.clang.cindex.Cursor
+
+def main():
+	clang.cindex.Config.set_library_file('/usr/lib/x86_64-linux-gnu/libclang-7.so.1')
+	args = args_parser()
+	global colored
+	if args.colorize:
+		try:
+			from termcolor import colored as colored
+		except ImportError:
+			colored = lambda x, *args, **kwargs: x
+	else:
+		colored = lambda x, *args, **kwargs: x
+	index = clang.cindex.Index.create()
+	for filename in args.source_files:
+		if filename.endswith('.c'):
+			check_file(index, filename, args)
+
+def check_file(index, C_source_filename, args):
+	try:
+		with open(C_source_filename, encoding='utf-8', errors='replace') as f:
+			C_source = f.read()
+	except OSError as e:
+		print(e, file=sys.stderr)
+		return
+	try:
+		abstract_syntax_tree = index.parse(C_source_filename, unsaved_files=[(C_source_filename, C_source)]).cursor
+	except clang.cindex.TranslationUnitLoadError:
+		return
+	if args.debug:
+		for n in abstract_syntax_tree_nodes(abstract_syntax_tree):
+			print(f'{" " * n.depth} {n.kind.name} {node_location(n)}')
+	return check_prohibited_code(abstract_syntax_tree, args)
+#	C_source_lines = C_source.splitlines()
+#	if check_tabs_spaces_mixed(C_source_filename, C_source_lines):
+#		return
+#	check_body_indents(args, C_source_filename, C_source)
+
+def args_parser():
+	parser = argparse.ArgumentParser()
+	parser.add_argument("--colorize", action="store_true", default=sys.stdout.isatty(), help="colorize output")
+	parser.add_argument("-d", "--debug", action="count", default=0 ,  help="show debug ouput")
+	parser.add_argument("source_files",	 nargs='*', default=[], help="")
+	return parser.parse_args()
+
+def check_prohibited_code(abstract_syntax_tree, args):
+	n_warnings = 0
+	for n in abstract_syntax_tree_nodes(abstract_syntax_tree):
+		for check in [check_global, check_static, check_goto]:
+			description = check(n)
+			if description:
+				print(f"{node_location(n)} {colored('warning', 'red')}: {description} - this is {colored('not permitted', 'red')} in COMP1511")
+				n_warnings += 1
+	# FIXME
+	if n_warnings:
+		# FIXME
+		print("For more information see http://cgi.cse.unsw.edu.au/~cs1511/19T1/flask_tutors.cgi/resources/style_guide.html")
+		print()
+	return n_warnings
+
+def check_global(node):
+	if node.kind == Kind.VAR_DECL and  node.parent.kind == Kind.TRANSLATION_UNIT:
+		return f"variable '{colored(node.displayname, 'blue')}' is a global variable"
+
+def check_static(node):
+	if node.kind == Kind.VAR_DECL and node.storage_class == clang.cindex.StorageClass.STATIC:
+		return f"variable '{colored(node.displayname, 'blue')}' is declared static"
+
+def check_goto(node):
+	if node.kind == Kind.GOTO_STMT:
+		return f"goto statement used"
+
+def check_tabs_spaces_mixed(C_source_filename, C_source_lines):
+	line_indent_type = collections.deafultdict(lambda:[])
+	for (line_number, line) in enumerate(C_source_lines):
+		indent_type = categorize_line(line)
+		if indent_type:
+			line_indent_type[indent_type].append(line_number)
+
+def categorize_line(line):
+	if re.match(r'^ +\S', line):
+		return "spaces"
+	if re.match(r'^\t+\S', line):
+		return "tabs"
+	if re.match(r'^[ \t]+\S', line):
+		return "mix"	
+	
+# check bodies of of if/while/for functions consistently indented
+# mixes of tabs & spaces not considered
+def check_body_indents(args, C_source_file, C_source):
+	ast = args.index.parse(C_source_file, unsaved_files=[(C_source_file, C_source)]).cursor
+	indents = []
+	for node in abstract_syntax_tree_nodes(ast):
+		get_indents_node(node, indents)
+	indent_counts = collections.Counter(i[1] for i in indents)
+	if len(indent_counts) < 2:
+		return
+	base_indent = indent_counts.most_common(1)[0][0]
+	for (line, indent) in sorted(indents):
+		if indent != base_indent:
+			print(f'{C_source_file}:{line} indented {indent} instead of {base_indent}')
+	
+def get_indents_node(n, indents):
+	#print(f'{"	 " * n.depth} {n.kind.name} {n.location.file}:{n.extent.start.line}:{n.extent.start.column}')
+	if n.kind == Kind.COMPOUND_STMT:
+		parent = n.parent
+		if parent.kind not in [Kind.IF_STMT, Kind.WHILE_STMT, Kind.FOR_STMT, Kind.FUNCTION_DECL]:
+			return
+		# handle if else if chains
+		while parent.parent.kind == Kind.IF_STMT:
+			parent = parent.parent
+		for child in n.get_children():
+			indent = child.extent.start.column - parent.extent.start.column
+			indents.append((child.extent.start.line, indent))
+
+# traverse ast nodes from same file (don't go into #includes)
+# semantic_parent & lexical parents don't seem to be implement so add own our parent & depth
+def abstract_syntax_tree_nodes(node, depth=0, parent=None):
+	node.depth = depth
+	node.parent = parent
+	yield node
+	parent_filename = node.location.file.name if node.location.file else node.displayname
+	for child in node.get_children():
+		child_filename = child.location.file.name if child.location.file else child.displayname
+		if child_filename == parent_filename:
+			for rn in abstract_syntax_tree_nodes(child, depth + 1, node):
+				yield rn
+
+def node_location(n):
+	return f'{n.location.file}:{n.extent.start.line}:{n.extent.start.column}'
+	
+if __name__ == "__main__":
+	main()
