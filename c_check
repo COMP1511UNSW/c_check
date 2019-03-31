@@ -24,17 +24,30 @@ def main():
 			n_warnings += check_file(index, filename, args)
 	return n_warnings
 	
+def args_parser():
+	parser = argparse.ArgumentParser()
+	parser.add_argument("--colorize", action="store_true", default=os.environ.get('C_CHECK_COLORIZE_OUTPUT', sys.stdout.isatty()), help="colorize output")
+	parser.add_argument("-d", "--debug", action="count", default=0 ,  help="show debug ouput")
+	parser.add_argument("-i", "--indenting", action="count", default=0 ,  help="check indeting conistant")
+	parser.add_argument("source_files",	 nargs='*', default=[], help="")
+	return parser.parse_args()
+
 def check_file(index, C_source_filename, args):
 	try:
 		with open(C_source_filename, encoding='utf-8', errors='replace') as f:
 			C_source = f.read()
 	except OSError as e:
 		print(e, file=sys.stderr)
-		return
+		return 1
 	try:
-		abstract_syntax_tree = index.parse(C_source_filename, unsaved_files=[(C_source_filename, C_source)]).cursor
+		tu = index.parse(C_source_filename, args=["-I/usr/lib/llvm-7/lib/clang/7.0.1/include/"], unsaved_files=[(C_source_filename, C_source)])
+		for diagnostic in tu.diagnostics:
+			if diagnostic.severity in [clang.cindex.Diagnostic.Error, clang.cindex.Diagnostic.Fatal]:
+				print(diagnostic.format())
+				sys.exit(1)
+		abstract_syntax_tree = tu.cursor
 	except clang.cindex.TranslationUnitLoadError:
-		return
+		return 1
 	if args.debug:
 		for n in abstract_syntax_tree_nodes(abstract_syntax_tree):
 			print(f'{" " * n.depth} {n.kind.name} {node_location(n)}')
@@ -42,18 +55,13 @@ def check_file(index, C_source_filename, args):
 	if n_warnings:
 		return n_warnings
 	C_source_lines = C_source.splitlines()
+	# exit 0 for indent warning
 	if check_tabs_spaces_mixed(C_source_filename, C_source_lines, abstract_syntax_tree, args):
-		return 0 # exit 0 for indent warnings
+		return 0
+	if args.indenting:
+		check_body_indents(C_source_filename, C_source_lines, abstract_syntax_tree, args)
 	return 0
-#	check_body_indents(args, C_source_filename, C_source)
-
-def args_parser():
-	parser = argparse.ArgumentParser()
-	parser.add_argument("--colorize", action="store_true", default=os.environ.get('C_CHECK_COLORIZE_OUTPUT', sys.stdout.isatty()), help="colorize output")
-	parser.add_argument("-d", "--debug", action="count", default=0 ,  help="show debug ouput")
-	parser.add_argument("source_files",	 nargs='*', default=[], help="")
-	return parser.parse_args()
-
+	
 def check_prohibited_code(abstract_syntax_tree, args):
 	n_warnings = 0
 	for n in abstract_syntax_tree_nodes(abstract_syntax_tree):
@@ -99,12 +107,15 @@ f"""{C_source_filename}: {colored('warning', 'red')}: {lines_description} indent
   Run {colored('1511 replace_tabs '+ C_source_filename,'blue')} to replace the tabs in {C_source_filename} with spaces.""")
 		return 1
 
+	# only warn if tabs and spaced used in same function
+	# to avoid warning when student has been supplied code indented with spaces
+	# and uses tabs for their own code 
 	for function in abstract_syntax_tree.get_children():
 		if (function.kind != Kind.FUNCTION_DECL or
-		    not function.location.file or
-		    function.location.file != C_source_filename):
+			not function.location.file or
+			function.location.file != C_source_filename):
 			continue
-		function_lines = set(range(function.extent.start.line, function.extent.end.line))
+		function_lines = set(range(function.extent.start.line, function.extent.end.line + 1))
 		tabbed_lines = function_lines & line_indent_type['tabs']
 		spaced_lines = function_lines & line_indent_type['spaces']
 		if not tabbed_lines or not spaced_lines:
@@ -113,8 +124,8 @@ f"""{C_source_filename}: {colored('warning', 'red')}: {lines_description} indent
 		spaced_description = describe_line_set(spaced_lines)
 		print(
 f"""{C_source_filename}: {colored('warning', 'red')}: function {colored(function.spelling, 'blue')} is indented with a mixture of tabs and spaces:
-    {tabbed_description} indented with tabs
-    {spaced_description} indented with spaces
+	{tabbed_description} indented with tabs
+	{spaced_description} indented with spaces
   This makes the display of your code unreliable including when your tutor is marking for style.
   In COMP1511 we recommend indenting with spaces only, using 4 spaces per indent level.
   Run {colored('1511 replace_tabs '+ C_source_filename,'blue')} to replace the tabs in {C_source_filename} with spaces.""")
@@ -144,32 +155,91 @@ def categorize_line(line):
 	
 # check bodies of of if/while/for functions consistently indented
 # mixes of tabs & spaces not considered
-def check_body_indents(args, C_source_file, C_source):
-	ast = args.index.parse(C_source_file, unsaved_files=[(C_source_file, C_source)]).cursor
-	indents = []
-	for node in abstract_syntax_tree_nodes(ast):
-		get_indents_node(node, indents)
-	indent_counts = collections.Counter(i[1] for i in indents)
+def check_body_indents(C_source_filename, C_source_lines, abstract_syntax_tree, args):
+	line_indent = {}
+	get_indents_node(abstract_syntax_tree, None, 0, line_indent)
+	indent_counts = collections.Counter(i[0] for i in line_indent.values() if i[0])
 	if len(indent_counts) < 2:
 		return
+
+	# FIXME - change extraction of base_indent to be per function
+	# for small program ensure an indent of 4 has priority
+	indent_counts[4] += 2  
 	base_indent = indent_counts.most_common(1)[0][0]
-	for (line, indent) in sorted(indents):
-		if indent != base_indent:
-			print(f'{C_source_file}:{line} indented {indent} instead of {base_indent}')
+	show_lines = set()
+	incorrectly_indented_lines = 0
+	for (line, (relative_indent, absolute_indent, indent_depth, parent)) in sorted(line_indent.items()):
+		if absolute_indent != indent_depth * base_indent:
+			if args.debug: 
+				print(f"{C_source_filename}:{line} indented {absolute_indent} should be {indent_depth * base_indent}")
+				print(parent.extent.start.line, parent.extent.end.line + 1)
+			incorrectly_indented_lines += 1
+			show_lines = show_lines.union(range(parent.extent.start.line, parent.extent.end.line + 1))
+
+	last_line_number = 0
+	for line_number in sorted(show_lines):
+		if last_line_number + 1 < line_number < last_line_number + 5:
+			show_lines = show_lines.union(range( last_line_number + 1, line_number))
+		last_line_number = line_number
 	
-def get_indents_node(n, indents):
+	if len(C_source_lines) < last_line_number + 5:
+		show_lines = show_lines.union(range(last_line_number + 1, len(C_source_lines) + 1))
+		
+	print(f"{C_source_filename}: {colored('warning', 'red')}: some lines are not consistently indented.")
+	print("Incorrectly indented lines are marked with an *.", end='')
+	if args.colorize:
+		print(f" The correct indent is {colored('shown in red', on_color='on_red')}.")
+		print(f"Correctly indented lines are {colored('shown in green', on_color='on_green')}.", end='')
+	print()
+	last_line_number = 0
+	for line_number in sorted(show_lines):
+		if last_line_number and line_number > last_line_number + 5:
+			print('......')
+		line = C_source_lines[line_number - 1]
+		if line_number in line_indent:
+			(relative_indent, absolute_indent, indent_depth, parent) = line_indent[line_number]
+			correct_indent = indent_depth * base_indent
+			on_color = 'on_green' if absolute_indent == correct_indent else 'on_red'
+			marker = ' ' if absolute_indent == correct_indent else '*'
+			if len(line) < correct_indent:
+				line += ' ' * (correct_indent - len(line))
+			prefix = line[0:correct_indent]
+			suffix = line[correct_indent:]
+			print(f'{line_number:6}{marker} {colored(prefix, on_color=on_color)}{suffix}')
+		else:
+			print(f'{line_number:6}  {line}')
+		last_line_number = line_number
+
+	return incorrectly_indented_lines
+		
+def get_indents_node(n, parent, indent_depth, line_indent):
+	n.parent = parent
 	#print(f'{"	 " * n.depth} {n.kind.name} {n.location.file}:{n.extent.start.line}:{n.extent.start.column}')
 	if n.kind == Kind.COMPOUND_STMT:
-		parent = n.parent
 		if parent.kind not in [Kind.IF_STMT, Kind.WHILE_STMT, Kind.FOR_STMT, Kind.FUNCTION_DECL]:
 			return
 		# handle if else if chains
 		while parent.parent.kind == Kind.IF_STMT:
 			parent = parent.parent
 		for child in n.get_children():
-			indent = child.extent.start.column - parent.extent.start.column
-			indents.append((child.extent.start.line, indent))
-
+			child_line_number = child.extent.start.line
+			relative_indent = child.extent.start.column - parent.extent.start.column
+			absolute_indent = child.extent.start.column - 1
+			tuple = (relative_indent, absolute_indent, indent_depth + 1, parent)
+			line_indent.setdefault(child_line_number, tuple)
+			get_indents_node(child, n, indent_depth + 1 , line_indent)
+		end_line_number = n.extent.end.line
+		relative_indent = n.extent.end.column - parent.extent.start.column - 1
+		absolute_indent = n.extent.end.column - 2
+		tuple = (relative_indent, absolute_indent, indent_depth, parent)
+		line_indent.setdefault(end_line_number, tuple)
+	else:
+		parent_filename = n.location.file.name if n.location.file else n.displayname
+		for child in n.get_children():
+			child_filename = child.location.file.name if child.location.file else child.displayname
+			if child_filename == parent_filename:
+				get_indents_node(child, n, indent_depth, line_indent)
+			
 # traverse ast nodes from same file (don't go into #includes)
 # semantic_parent & lexical parents don't seem to be implement so add own our parent & depth
 def abstract_syntax_tree_nodes(node, depth=0, parent=None):
@@ -179,7 +249,7 @@ def abstract_syntax_tree_nodes(node, depth=0, parent=None):
 	parent_filename = node.location.file.name if node.location.file else node.displayname
 	for child in node.get_children():
 		child_filename = child.location.file.name if child.location.file else child.displayname
-		if child_filename == parent_filename:
+		if  child_filename == parent_filename:
 			for rn in abstract_syntax_tree_nodes(child, depth + 1, node):
 				yield rn
 
