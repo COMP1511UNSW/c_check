@@ -1,0 +1,37 @@
+#!/bin/sh
+
+# wrap expand so that students are unlikely to lose data
+# assumes ttabs are 4 spaces
+
+for file in "$@"
+do
+	backup_file="$file.original_with_tabs"
+	
+	if test -e "$backup_file"
+	then
+		echo "$0: can not backup '$file' to '$backup_file' because it already exists" 1>&2
+		echo "rename or remove '$backup_file' and rerun" 1>&2
+		exit 1
+	fi
+	
+	mv "$file" "$backup_file" || exit 1
+	
+	if expand -it 4 "$backup_file" >"$file"
+	then
+		if diff  "$backup_file" "$file" >/dev/null
+		then
+			mv "$backup_file" "$file"
+			echo "$0: no tabs found in $file" 
+		else
+			echo "mv $file $backup_file"
+			echo "expand -it 4 $backup_file >$file"
+			chmod --reference="$backup_file" "$file"
+			echo "$0: tabs replaced in '$file', original contents left in '$backup_file'" 
+		fi
+	else
+		echo "$0: tab expansion failed" 1>&2
+		mv "$backup_file" "$file"
+		exit 1
+	fi
+done
+exit 0

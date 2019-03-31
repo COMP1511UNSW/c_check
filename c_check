@@ -18,10 +18,12 @@ def main():
 	else:
 		colored = lambda x, *args, **kwargs: x
 	index = clang.cindex.Index.create()
+	n_warnings = 0
 	for filename in args.source_files:
 		if filename.endswith('.c'):
-			check_file(index, filename, args)
-
+			n_warnings += check_file(index, filename, args)
+	return n_warnings
+	
 def check_file(index, C_source_filename, args):
 	try:
 		with open(C_source_filename, encoding='utf-8', errors='replace') as f:
@@ -36,10 +38,13 @@ def check_file(index, C_source_filename, args):
 	if args.debug:
 		for n in abstract_syntax_tree_nodes(abstract_syntax_tree):
 			print(f'{" " * n.depth} {n.kind.name} {node_location(n)}')
-	return check_prohibited_code(abstract_syntax_tree, args)
-#	C_source_lines = C_source.splitlines()
-#	if check_tabs_spaces_mixed(C_source_filename, C_source_lines):
-#		return
+	n_warnings = check_prohibited_code(abstract_syntax_tree, args)
+	if n_warnings:
+		return n_warnings
+	C_source_lines = C_source.splitlines()
+	if check_tabs_spaces_mixed(C_source_filename, C_source_lines):
+		return 0 # exit 0 for indent warnings
+	return 0
 #	check_body_indents(args, C_source_filename, C_source)
 
 def args_parser():
@@ -57,15 +62,17 @@ def check_prohibited_code(abstract_syntax_tree, args):
 			if description:
 				print(f"{node_location(n)} {colored('warning', 'red')}: {description} - this is {colored('not permitted', 'red')} in COMP1511")
 				n_warnings += 1
-	# FIXME
 	if n_warnings:
 		# FIXME
-		print("For more information see http://cgi.cse.unsw.edu.au/~cs1511/19T1/flask_tutors.cgi/resources/style_guide.html")
+		print("  For more information see http://cgi.cse.unsw.edu.au/~cs1511/19T1/flask_tutors.cgi/resources/style_guide.html")
 		print()
 	return n_warnings
 
 def check_global(node):
-	if node.kind == Kind.VAR_DECL and  node.parent.kind == Kind.TRANSLATION_UNIT:
+	if (node.kind == Kind.VAR_DECL and
+	    node.parent.kind == Kind.TRANSLATION_UNIT and
+	    not node.type.is_const_qualified() and
+	    node.type.kind != clang.cindex.TypeKind.CONSTANTARRAY):
 		return f"variable '{colored(node.displayname, 'blue')}' is a global variable"
 
 def check_static(node):
@@ -77,19 +84,29 @@ def check_goto(node):
 		return f"goto statement used"
 
 def check_tabs_spaces_mixed(C_source_filename, C_source_lines):
-	line_indent_type = collections.deafultdict(lambda:[])
+	line_indent_type = collections.defaultdict(lambda:[])
 	for (line_number, line) in enumerate(C_source_lines):
 		indent_type = categorize_line(line)
 		if indent_type:
 			line_indent_type[indent_type].append(line_number)
-
+	if line_indent_type['mixed']:
+		line_numbers = ",".join(map(str, line_indent_type['mixed'][0:5]))
+		if len(line_indent_type['mixed']) > 5:
+			line_numbers += ', ...'
+		print(f"{C_source_filename}: {colored('warning', 'red')}: lines {line_numbers} indented with a mixture of tabs and spaces")
+		print(f"  This makes the display of your code unreliable including when your tutor is marking for style.")
+		print(f"  In COMP1511 we recommend indenting with spaces only, using 4 spaces per indent level.")
+		print(f"  Run {colored('1511 replace_tabs '+ C_source_filename,'blue')} to replace the tabs in {C_source_filename} with spaces.")
+		return 1
+	return 0
+	
 def categorize_line(line):
 	if re.match(r'^ +\S', line):
 		return "spaces"
 	if re.match(r'^\t+\S', line):
 		return "tabs"
 	if re.match(r'^[ \t]+\S', line):
-		return "mix"	
+		return "mixed"	
 	
 # check bodies of of if/while/for functions consistently indented
 # mixes of tabs & spaces not considered
@@ -136,4 +153,4 @@ def node_location(n):
 	return f'{n.location.file}:{n.extent.start.line}:{n.extent.start.column}'
 	
 if __name__ == "__main__":
-	main()
+	sys.exit(1 if main() else 0)
