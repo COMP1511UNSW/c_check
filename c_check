@@ -38,7 +38,8 @@ def args_parser():
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--colorize", action="store_true", default=os.environ.get('C_CHECK_COLORIZE_OUTPUT', sys.stdout.isatty()), help="colorize output")
 	parser.add_argument("-d", "--debug", action="count", default=0 ,  help="show debug ouput")
-	parser.add_argument("-i", "--indenting",  default=True ,  help="check indenting consistent")
+	parser.add_argument("--no_indenting",  action="store_false", dest="indenting", default=True ,  help="check indenting consistent")
+	parser.add_argument("--no_highlight_incorrect_indenting", action="store_false", dest="highlight_incorrect_indenting", default=True,   help="do not highlight incorrect indenting")
 	parser.add_argument("source_files",	 nargs='*', default=[], help="")
 	return parser.parse_args()
 
@@ -173,8 +174,9 @@ def check_body_indents(C_source_filename, C_source_lines, abstract_syntax_tree, 
 	for function in get_functions(abstract_syntax_tree):
 		show_lines |= check_function_indent(C_source_filename, function, args, line_indent)
 	incorrectly_indented_lines = len(show_lines)
-	if not show_lines:
-		return 0
+
+	if not incorrectly_indented_lines or not args.highlight_incorrect_indenting:
+		return incorrectly_indented_lines
 
 	show_lines = expand_lines_shown(C_source_lines, show_lines)
 	
@@ -185,7 +187,8 @@ def check_body_indents(C_source_filename, C_source_lines, abstract_syntax_tree, 
 # determine the indent_unit for a function
 # then check lines are consistently indented
 
-def check_function_indent(C_source_filename, abstract_syntax_tree, args, line_indent):
+def check_function_indent(C_source_filename, abstract_syntax_tree, args, file_line_indent):
+	line_indent = {}
 	get_indents(abstract_syntax_tree, None, 0, line_indent)
 	indent_counts = collections.Counter(i.relative_indent for i in line_indent.values() if i.relative_indent)
 	if args.debug:
@@ -200,9 +203,10 @@ def check_function_indent(C_source_filename, abstract_syntax_tree, args, line_in
 	show_lines = set()
 	incorrectly_indented_lines = 0
 	for (line, indent) in sorted(line_indent.items()):
+		file_line_indent.setdefault(line, indent)
 		indent.correct_indent = indent.indent_depth * indent_unit
 		if not indent.correctly_indented():
-			if args.debug: 
+			if not args.highlight_incorrect_indenting: 
 				print(f"{C_source_filename}:{line} indented {indent.absolute_indent} should be {indent.correct_indent}")
 			incorrectly_indented_lines += 1
 			show_lines = show_lines.union(range(indent.parent.extent.start.line, indent.parent.extent.end.line + 1))
@@ -244,7 +248,7 @@ def print_indents(C_source_filename, C_source_lines, args, line_indent, show_lin
 
 def get_indents(n, parent, indent_depth, line_indent):
 	n.parent = parent
-	#print(f'{"	 " * n.depth} {n.kind.name} {n.location.file}:{n.extent.start.line}:{n.extent.start.column}')
+	#print(f'{n.location.file}:{n.extent.start.line}:{n.extent.start.column} {n.kind.name} {n.spelling}')
 	if n.kind == Kind.COMPOUND_STMT:
 		if parent.kind not in [Kind.IF_STMT, Kind.WHILE_STMT, Kind.FOR_STMT, Kind.FUNCTION_DECL]:
 			return
@@ -313,7 +317,9 @@ def get_functions(root):
 	for function in root.get_children():
 		if (function.kind != Kind.FUNCTION_DECL or
 			not function.location.file or
-			function.location.file.name != root.displayname):
+			function.location.file.name != root.displayname or
+			# skip declarations
+			not any(c.kind == Kind.COMPOUND_STMT for c in function.get_children())):
 			continue
 		yield function
 		
