@@ -92,10 +92,11 @@ def check_prohibited_code(abstract_syntax_tree, args):
 	return n_warnings
 
 def check_global(node):
+	#print(node.type.kind, node.type, node.type.spelling, node.type.is_const_qualified())
 	if (node.kind == Kind.VAR_DECL and
 		node.parent.kind == Kind.TRANSLATION_UNIT and
-		not node.type.is_const_qualified() and
-		node.type.kind != clang.cindex.TypeKind.CONSTANTARRAY):
+		'debug' not in node.displayname and 
+		'const' not in node.type.spelling): #FIXME - there should be a better way to do this
 		return f"variable '{colored(node.displayname, 'blue')}' is a global variable"
 
 def check_static(node):
