@@ -191,7 +191,7 @@ def check_body_indents(C_source_filename, C_source_lines, abstract_syntax_tree, 
 def check_function_indent(C_source_filename, abstract_syntax_tree, args, file_line_indent):
 	line_indent = {}
 	get_indents(abstract_syntax_tree, None, 0, line_indent)
-	indent_counts = collections.Counter(i.relative_indent for i in line_indent.values() if i.relative_indent)
+	indent_counts = collections.Counter(i.relative_indent for i in line_indent.values())
 	if args.debug:
 		print('indent_counts', indent_counts)
 	if len(indent_counts) < 2:
