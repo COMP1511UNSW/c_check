@@ -100,7 +100,9 @@ def check_global(node):
 		return f"variable '{colored(node.displayname, 'blue')}' is a global variable"
 
 def check_static(node):
-	if node.kind == Kind.VAR_DECL and node.storage_class == clang.cindex.StorageClass.STATIC:
+	if (node.kind == Kind.VAR_DECL and
+	    node.storage_class == clang.cindex.StorageClass.STATIC and
+		'const' not in node.type.spelling): #FIXME - there should be a better way to do this
 		return f"variable '{colored(node.displayname, 'blue')}' is declared static"
 
 def check_goto(node):
