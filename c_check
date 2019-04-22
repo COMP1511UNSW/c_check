@@ -70,7 +70,7 @@ def check_file(index, C_source_filename, args, index_parse_args):
 		for n in abstract_syntax_tree_nodes(abstract_syntax_tree):
 			print(f'{" " * n.depth} {n.kind.name} {node_location(n)}')
 
-	check_file_expressions(abstract_syntax_tree, args)i	
+	check_file_expressions(abstract_syntax_tree, args)	
 	n_warnings = check_prohibited_code(abstract_syntax_tree, args)
 	if n_warnings:
 		return n_warnings
