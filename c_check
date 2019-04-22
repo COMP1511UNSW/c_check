@@ -3,8 +3,10 @@ import argparse, collections, glob, os, re, sys
 import clang.cindex
 from clang.cindex import CursorKind as Kind
 
-# https://github.com/llvm-mirror/clang/blob/master/bindings/python/clang/cindex.py
-# https://www.pydoc.io/pypi/prophy-1.0.1/autoapi/parsers/clang/cindex/index.html#parsers.clang.cindex.Cursor
+# source: https://github.com/llvm-mirror/clang/blob/master/bindings/python/clang/cindex.py
+# API description: https://www.pydoc.io/pypi/prophy-1.0.1/autoapi/parsers/clang/cindex/index.html#parsers.clang.cindex.Cursor
+# example code at: https://github.com/coala/coala-bears/blob/master/bears/c_languages/codeclone_detection/ClangCountingConditions.py
+
 
 def main():
 	include_directory = None
@@ -27,6 +29,7 @@ def main():
 			colored = lambda x, *args, **kwargs: x
 	else:
 		colored = lambda x, *args, **kwargs: x
+
 	index = clang.cindex.Index.create()
 	n_warnings = 0
 	for filename in args.source_files:
@@ -57,7 +60,7 @@ def check_file(index, C_source_filename, args, index_parse_args):
 		for diagnostic in tu.diagnostics:
 			if diagnostic.severity in [clang.cindex.Diagnostic.Error, clang.cindex.Diagnostic.Fatal]:
 				print(diagnostic.format())
-				sys.exit(1)
+				return 1
 			elif args.debug:
 				print(diagnostic.format())
 		abstract_syntax_tree = tu.cursor
@@ -66,15 +69,20 @@ def check_file(index, C_source_filename, args, index_parse_args):
 	if args.debug:
 		for n in abstract_syntax_tree_nodes(abstract_syntax_tree):
 			print(f'{" " * n.depth} {n.kind.name} {node_location(n)}')
+
+	check_file_expressions(abstract_syntax_tree, args)i	
 	n_warnings = check_prohibited_code(abstract_syntax_tree, args)
 	if n_warnings:
 		return n_warnings
+
 	C_source_lines = C_source.splitlines()
-	# exit 0 for indent warning
+
 	if check_tabs_spaces_mixed(C_source_filename, C_source_lines, abstract_syntax_tree, args):
 		return 0
+
 	if args.indenting:
 		check_body_indents(C_source_filename, C_source_lines, abstract_syntax_tree, args)
+	# exit 0 for indent warning
 	return 0
 	
 def check_prohibited_code(abstract_syntax_tree, args):
@@ -87,7 +95,7 @@ def check_prohibited_code(abstract_syntax_tree, args):
 				n_warnings += 1
 	if n_warnings:
 		# FIXME
-		print("  For more information see http://cgi.cse.unsw.edu.au/~cs1511/19T1/flask_tutors.cgi/resources/style_guide.html")
+		print("  For more information see http://cgi.cse.unsw.edu.au/~cs1511/19T1/resources/style_guide.html")
 		print()
 	return n_warnings
 
@@ -101,13 +109,98 @@ def check_global(node):
 
 def check_static(node):
 	if (node.kind == Kind.VAR_DECL and
-	    node.storage_class == clang.cindex.StorageClass.STATIC and
+		node.storage_class == clang.cindex.StorageClass.STATIC and
 		'const' not in node.type.spelling): #FIXME - there should be a better way to do this
 		return f"variable '{colored(node.displayname, 'blue')}' is declared static"
 
 def check_goto(node):
 	if node.kind == Kind.GOTO_STMT:
 		return f"goto statement used"
+
+def check_file_expressions(abstract_syntax_tree, args):
+	for function in get_functions(abstract_syntax_tree):
+		state = { 'char_variables' : set() }
+		check_statement_expressions(function, args, state)
+
+def check_statement_expressions(n, args, state):
+	#print(f'{n.location.file}:{n.extent.start.line}:{n.extent.start.column} {n.kind.name} {n.spelling}')
+	check_for_raw_ascii_codes(n, args, state)			
+	parent_filename = n.location.file.name if n.location.file else n.displayname
+	for child in n.get_children():
+		child_filename = child.location.file.name if child.location.file else child.displayname
+		if child_filename == parent_filename:
+			check_statement_expressions(child, args, state)
+
+
+# issue warning for integer constants that look like ASCII codes, e.g.:
+# c = getchar(); if (c == 10) ....
+#
+# FIXME - warn about analagous code with fgets and char array element 
+
+def check_for_raw_ascii_codes(n, args, state):
+	if n.kind != Kind.BINARY_OPERATOR:
+		return
+	variable = test_children(n, is_variable)
+	integer_literal = test_children(n, lambda x: x.kind == Kind.INTEGER_LITERAL)
+	function_call_to_get_char = test_children(n, is_function_call_to_get_char)
+	operator = get_operator(n)
+
+	if variable and function_call_to_get_char:
+	
+		# note variable has been assigned result of getchar etc.
+		state['char_variables'].add(variable.hash)
+
+	elif variable and operator == '=':
+	
+		# variable previously assigned result of getchar is being reused for different purpose
+		# so delete from variables 
+		is_variable(next(n.get_children()))
+		state['char_variables'].discard(variable.hash)
+
+	elif (
+		variable and
+		variable.hash in state['char_variables'] and
+		integer_literal and
+		operator in ['==', '!=', '<=', '>=', '<', '>']
+		):
+
+		#  variable previously assigned result of getchar etc.i  compared to integer literal
+		try:
+			ascii_code = int(next(integer_literal.get_tokens()).spelling)
+		except Valueerror:
+			ascii_code = 0
+		if 6 < ascii_code < 126:
+			correct = repr(chr(ascii_code))
+			# FIXME - warning should be collected and issued
+			print(f"{node_location(n)} {colored('warning', 'red')}: ASCII code {colored(str(ascii_code), 'red')} used, replace with {colored(correct, 'green')}")
+			
+def test_children(n, condition): 
+	for child in n.get_children():
+		value = condition(child)
+		if value:
+			return child if value is True else value
+
+def is_function_call_to_get_char(n):
+	return n.kind == Kind.CALL_EXPR and n.spelling in ['getchar', 'getc', 'fgetc']
+	
+def is_variable(n):
+	if n.kind == Kind.DECL_REF_EXPR:
+		return n.referenced
+	if n.kind == Kind.UNEXPOSED_EXPR:
+		child = next(n.get_children())
+		if child.kind == Kind.DECL_REF_EXPR:
+			return child.referenced
+	
+def get_operator(n):
+    (left,right) = n.get_children()
+    min_begin = (left.location.line, left.location.column)
+    max_end = (right.location.line, right.location.column)
+    for t in n.get_tokens():
+        if (
+        	min_begin < (t.extent.start.line, t.extent.start.column) and
+            max_end >= (t.extent.end.line, t.extent.end.column)
+            ):
+            return t.spelling
 
 def check_tabs_spaces_mixed(C_source_filename, C_source_lines, abstract_syntax_tree, args):
 	line_indent_type = collections.defaultdict(lambda:set())
@@ -215,7 +308,7 @@ def check_function_indent(C_source_filename, abstract_syntax_tree, args, file_li
 			show_lines = show_lines.union(range(indent.parent.extent.start.line, indent.parent.extent.end.line + 1))
 	return show_lines
 	
-# fill in small gaps in line shown for prettier less confusing output
+# fill in small gaps in lines shown from a file for prettier less confusing output
 
 def expand_lines_shown(C_source_lines, show_lines):
 	last_line_number = 0
@@ -328,7 +421,14 @@ def get_functions(root):
 		
 def node_location(n):
 	return f'{n.location.file}:{n.extent.start.line}:{n.extent.start.column}'
-	
+
+def dump(obj):
+	for attr in dir(obj):
+		try:
+			print("obj.%s = %r" % (attr, getattr(obj, attr)))
+		except Exception:
+			pass
+		
 if __name__ == "__main__":
 	try:
 		sys.exit(1 if main() else 0)
