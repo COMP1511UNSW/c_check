@@ -39,6 +39,9 @@ def args_parser():
     parser.add_argument("--ban-non-char-arrays", dest="ban_non_char_arrays", action="store_true", default=False)
     parser.add_argument("--no-ban-non-char-arrays", dest="ban_non_char_arrays", action="store_false")
 
+    parser.add_argument("--ban-string-library", dest="ban_string_library", action="store_true", default=False)
+    parser.add_argument("--no-ban-string-library", dest="ban_string_library", action="store_false")
+
     parser.add_argument("--ban-multiple-malloc", dest="ban_multiple_malloc", action="store_true", default=False)
     parser.add_argument("--no-multiple-malloc", dest="ban_multiple_malloc", action="store_false")
 
@@ -132,7 +135,7 @@ def check_prohibited_code(abstract_syntax_tree, args, C_source_lines=[]):
                 print_diagnostic(n, description, level='error', source_lines=C_source_lines)
                 n_always_banned_code += 1
 
-        for check in [ban_arrays, ban_non_char_arrays, ban_multiple_malloc]:
+        for check in [ban_arrays, ban_non_char_arrays, ban_multiple_malloc, ban_string_library]:
             description = check(n, args, state)
             if description:
                 description += f" - this is {colored('not permitted', 'red')} in this exercise"
@@ -196,21 +199,21 @@ def ban_goto(n, args, state):
     if not args.ban_goto:
         return None
     if n.kind == Kind.GOTO_STMT:
-        return f"goto statement used"
+        return "goto statement used"
 
 
 def ban_arrays(n, args, state):
     if not args.ban_arrays:
         return None
     if n.kind == Kind.VAR_DECL and '[' in n.type.spelling:
-        return f"array used"
+        return "array used"
 
 
 def ban_non_char_arrays(n, args, state):
     if not args.ban_non_char_arrays:
         return None
     if n.kind == Kind.VAR_DECL and '[' in n.type.spelling and 'char' not in n.type.spelling:
-        return f"non-char array used"
+        return "non-char array used"
 
 def ban_multiple_malloc(n, args, state):
     if not args.ban_multiple_malloc:
@@ -219,7 +222,17 @@ def ban_multiple_malloc(n, args, state):
         n_calls = state.get('malloc_calls_count', 0) + 1
         state['malloc_calls_count'] = n_calls
         if n_calls > 1:
-            return f"malloc called"
+            return "malloc called"
+
+def ban_string_library(n, args, state):
+    if not args.ban_string_library:
+        return None
+    if (n.kind == Kind.DECL_REF_EXPR and
+        n.referenced and
+        n.referenced.location and
+        n.referenced.location.file and
+        n.referenced.location.file.name == "/usr/include/string.h"):
+        return "strings.h used"
 
 
 def check_file_expressions(abstract_syntax_tree, args, source_lines):
