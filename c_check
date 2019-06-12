@@ -183,7 +183,7 @@ def ban_global_variables(n, args, state):
 		n.parent.kind == Kind.TRANSLATION_UNIT and
 		'debug' not in n.displayname and 
 		'const' not in n.type.spelling): #FIXME - there should be a better way to do this
-		return f"variable '{colored(n.displayname, 'blue')}' is a global variable"
+		return f"variable '{colored(n.displayname, 'cyan')}' is a global variable"
 
 
 def ban_static_local_variables(n, args, state):
@@ -192,7 +192,7 @@ def ban_static_local_variables(n, args, state):
 	if (n.kind == Kind.VAR_DECL and
 		n.storage_class == clang.cindex.StorageClass.STATIC and
 		'const' not in n.type.spelling): #FIXME - there should be a better way to do this
-		return f"variable '{colored(n.displayname, 'blue')}' is declared static"
+		return f"variable '{colored(n.displayname, 'cyan')}' is declared static"
 
 
 def ban_goto(n, args, state):
@@ -366,7 +366,7 @@ def check_tabs_spaces_mixed(C_source_filename, C_source_lines, abstract_syntax_t
 f"""{C_source_filename}: {colored('warning', 'red')}: {lines_description} indented with a mixture of tabs and spaces
   This makes the display of your code unreliable including when your tutor is marking for style.
   In COMP1511 we recommend indenting with spaces only, using 4 spaces per indent level.
-  Run {colored('1511 replace_tabs '+ C_source_filename,'blue')} to replace the tabs in {C_source_filename} with spaces.""")
+  Run {colored('1511 replace_tabs '+ C_source_filename,'cyan')} to replace the tabs in {C_source_filename} with spaces.""")
 		return 1
 
 	# only warn if tabs and spaced used in same function
@@ -382,12 +382,12 @@ f"""{C_source_filename}: {colored('warning', 'red')}: {lines_description} indent
 		tabbed_description = describe_line_set(tabbed_lines)
 		spaced_description = describe_line_set(spaced_lines)
 		print(
-f"""{C_source_filename}: {colored('warning', 'red')}: function {colored(function.spelling, 'blue')} is indented with a mixture of tabs and spaces:
+f"""{C_source_filename}: {colored('warning', 'red')}: function {colored(function.spelling, 'cyan')} is indented with a mixture of tabs and spaces:
 	{tabbed_description} indented with tabs
 	{spaced_description} indented with spaces
   This makes the display of your code unreliable including when your tutor is marking for style.
   In COMP1511 we recommend indenting with spaces only, using 4 spaces per indent level.
-  Run {colored('1511 replace_tabs '+ C_source_filename,'blue')} to replace the tabs in {C_source_filename} with spaces.""")
+  Run {colored('1511 replace_tabs '+ C_source_filename,'cyan')} to replace the tabs in {C_source_filename} with spaces.""")
 		return 1
 		
 	return 0
