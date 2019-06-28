@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 #!/web/cs2041/bin/python3.7.2
 import argparse, collections, glob, os, re, sys
 import clang.cindex
@@ -47,6 +48,9 @@ def args_parser():
 
 	parser.add_argument("--ban-goto", dest="ban_goto", action="store_true", default=True)
 	parser.add_argument("--ban-no-goto", dest="ban_goto", action="store_false")
+
+	parser.add_argument("--ban-ternaries", dest="ban_ternaries", action="store_true", default=True)
+	parser.add_argument("--ban-no-ternaries", dest="ban_ternaries", action="store_false")
 
 	parser.add_argument("--ban-global-variables", dest="ban_global_variables", action="store_true", default=True)
 	parser.add_argument("--no-ban-global-variables", dest="ban_global_variables", action="store_false")
@@ -128,7 +132,7 @@ def check_prohibited_code(abstract_syntax_tree, args, C_source_lines=[]):
 	n_banned_code = 0
 	state = {}
 	for n in abstract_syntax_tree_nodes(abstract_syntax_tree):
-		for check in [ban_global_variables, ban_static_local_variables, ban_goto]:
+		for check in [ban_global_variables, ban_static_local_variables, ban_goto, ban_ternaries]:
 			description = check(n, args, state)
 			if description:
 				description += f" - this is {colored('not permitted', 'red')} in COMP1511"
@@ -193,6 +197,13 @@ def ban_static_local_variables(n, args, state):
 		n.storage_class == clang.cindex.StorageClass.STATIC and
 		'const' not in n.type.spelling): #FIXME - there should be a better way to do this
 		return f"variable '{colored(n.displayname, 'cyan')}' is declared static"
+
+
+def ban_ternaries(n, args, state):
+	if not args.ban_ternaries:
+		return None
+	if n.kind == Kind.CONDITIONAL_OPERATOR:
+		return "ternary 'if' used"
 
 
 def ban_goto(n, args, state):
