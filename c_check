@@ -131,7 +131,7 @@ def check_prohibited_code(abstract_syntax_tree, args, C_source_lines=[]):
 	n_banned_code = 0
 	state = {}
 	for n in abstract_syntax_tree_nodes(abstract_syntax_tree):
-		for check in [ban_global_variables, ban_static_local_variables, ban_goto, ban_ternaries]:
+		for check in [ban_global_variables, ban_static_local_variables, ban_goto]: #, ban_ternaries]:
 			description = check(n, args, state)
 			if description:
 				description += f" - this is {colored('not permitted', 'red')} in COMP1511"
