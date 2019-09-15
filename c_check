@@ -1,4 +1,4 @@
-#!/web/cs2041/bin/python3.7.2
+#!/web/cs1521/bin/python
 import argparse, collections, glob, os, re, sys
 import clang.cindex
 from clang.cindex import CursorKind as Kind
