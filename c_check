@@ -184,8 +184,8 @@ def ban_global_variables(n, args, state):
 	#print(n.type.kind, n.type, n.type.spelling, n.type.is_const_qualified())
 	if (n.kind == Kind.VAR_DECL and
 		n.parent.kind == Kind.TRANSLATION_UNIT and
-		'debug' not in n.displayname and 
-		'const' not in n.type.spelling): #FIXME - there should be a better way to do this
+		'debug' not in n.displayname and
+		not n.type.get_canonical().is_const_qualified() ): #FIXME - there should be a better way to do this
 		return f"variable '{colored(n.displayname, 'cyan')}' is a global variable"
 
 
@@ -396,7 +396,7 @@ f"""{C_source_filename}: {colored('warning', 'red')}: function {colored(function
 	{tabbed_description} indented with tabs
 	{spaced_description} indented with spaces
   This makes the display of your code unreliable including when your tutor is marking for style.
-  In COMP1511 we recommend indenting with spaces only, using 4 spaces per indent level.
+  In COMP1521 we recommend indenting with spaces only, using 4 spaces per indent level.
   Run {colored('1511 replace_tabs '+ C_source_filename,'cyan')} to replace the tabs in {C_source_filename} with spaces.""")
 		return 1
 		
