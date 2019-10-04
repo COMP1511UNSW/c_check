@@ -43,10 +43,10 @@ def args_parser():
 	parser.add_argument("--no-ban-string-library", dest="ban_string_library", action="store_false")
 
 	parser.add_argument("--ban-multiple-malloc", dest="ban_multiple_malloc", action="store_true", default=False)
-	parser.add_argument("--no-multiple-malloc", dest="ban_multiple_malloc", action="store_false")
+	parser.add_argument("--no-ban-multiple-malloc", dest="ban_multiple_malloc", action="store_false")
 
 	parser.add_argument("--ban-goto", dest="ban_goto", action="store_true", default=True)
-	parser.add_argument("--ban-no-goto", dest="ban_goto", action="store_false")
+	parser.add_argument("--no-ban-goto", dest="ban_goto", action="store_false")
 
 	parser.add_argument("--ban-ternaries", dest="ban_ternaries", action="store_true", default=True)
 	parser.add_argument("--ban-no-ternaries", dest="ban_ternaries", action="store_false")
