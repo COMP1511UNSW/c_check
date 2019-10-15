@@ -74,6 +74,7 @@ def args_parser():
 
 
 def get_library_include():
+	# we could use ``clang -print-search-dirs`` here?
 	for library_file in sorted(glob.glob('/usr/lib/x86_64-linux-gnu/libclang-*.so.1'), reverse=True):
 		clang_version = re.sub(r'.*libclang-(.*).so.1', r'\1', library_file)
 		include_directories = glob.glob(f'/usr/lib/llvm-{clang_version}/lib/clang/{clang_version}*/include/')
