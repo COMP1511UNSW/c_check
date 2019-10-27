@@ -1,7 +1,7 @@
 #!/web/cs1521/bin/python3
 import argparse, collections, glob, os, re, sys
 import clang.cindex
-from clang.cindex import CursorKind as Kind
+from clang.cindex import CursorKind as CKind, TypeKind as TKind
 
 # source: https://github.com/llvm-mirror/clang/blob/master/bindings/python/clang/cindex.py
 # API description: https://www.pydoc.io/pypi/prophy-1.0.1/autoapi/parsers/clang/cindex/index.html#parsers.clang.cindex.Cursor
@@ -178,58 +178,69 @@ def print_diagnostic(n, message, level='warning', source_lines=[]):
 	underline = '^' + '~' * (end - start - 1)
 	print(' ' * (start - 1) + colored(underline, 'green'))
 
-		
+
 def ban_global_variables(n, args, state):
 	if not args.ban_global_variables:
 		return None
-	#print(n.type.kind, n.type, n.type.spelling, n.type.is_const_qualified())
-	if (n.kind == Kind.VAR_DECL and
-		n.parent.kind == Kind.TRANSLATION_UNIT and
-		'debug' not in n.displayname and
-		not n.type.get_canonical().spelling.startswith("const")): #FIXME - there should be a better way to do this
-		return f"variable '{colored(n.displayname, 'cyan')}' is a global variable"
+	if (n.kind == CKind.VAR_DECL and
+			n.parent.kind == CKind.TRANSLATION_UNIT and
+			'debug' not in n.displayname):
+		pointer_type = n.type.get_canonical()
+		while pointer_type.kind == TKind.POINTER:
+			if not pointer_type.is_const_qualified():
+				return f"variable '{colored(n.displayname, 'cyan')}' is a global variable"
+			pointer_type = pointer_type.get_pointee()
+		if not pointer_type.is_const_qualified():
+			return f"variable '{colored(n.displayname, 'cyan')}' is a global variable"
 
 
 def ban_static_local_variables(n, args, state):
 	if not args.ban_static_local_variables:
 		return None
-	if (n.kind == Kind.VAR_DECL and
-		n.storage_class == clang.cindex.StorageClass.STATIC and
-		not n.type.get_canonical().spelling.startswith("const")): #FIXME - there should be a better way to do this
-		return f"variable '{colored(n.displayname, 'cyan')}' is declared static"
+	if (n.kind == CKind.VAR_DECL and
+			n.storage_class == clang.cindex.StorageClass.STATIC and
+			n.parent.kind != CKind.TRANSLATION_UNIT and
+			'debug' not in n.displayname):
+		pointer_type = n.type.get_canonical()
+		while pointer_type.kind == TKind.POINTER:
+			if not pointer_type.is_const_qualified():
+				return f"variable '{colored(n.displayname, 'cyan')}' is a static variable"
+			pointer_type = pointer_type.get_pointee()
+		if not pointer_type.is_const_qualified():
+			return f"variable '{colored(n.displayname, 'cyan')}' is a static variable"
 
 
 def ban_ternaries(n, args, state):
 	if not args.ban_ternaries:
 		return None
-	if n.kind == Kind.CONDITIONAL_OPERATOR:
+	if n.kind == CKind.CONDITIONAL_OPERATOR:
 		return "ternary 'if' used"
 
 
 def ban_goto(n, args, state):
 	if not args.ban_goto:
 		return None
-	if n.kind == Kind.GOTO_STMT:
+	if n.kind == CKind.GOTO_STMT:
 		return "goto statement used"
 
 
 def ban_arrays(n, args, state):
 	if not args.ban_arrays:
 		return None
-	if n.kind == Kind.VAR_DECL and '[' in n.type.spelling:
+	if n.kind == CKind.VAR_DECL and '[' in n.type.spelling:
 		return "array used"
 
 
 def ban_non_char_arrays(n, args, state):
 	if not args.ban_non_char_arrays:
 		return None
-	if n.kind == Kind.VAR_DECL and '[' in n.type.spelling and 'char' not in n.type.spelling:
+	if n.kind == CKind.VAR_DECL and '[' in n.type.spelling and 'char' not in n.type.spelling:
 		return "non-char array used"
 
 def ban_multiple_malloc(n, args, state):
 	if not args.ban_multiple_malloc:
 		return None
-	if n.kind == Kind.CALL_EXPR and n.spelling in ['malloc', 'calloc', 'realloc']:
+	if n.kind == CKind.CALL_EXPR and n.spelling in ['malloc', 'calloc', 'realloc']:
 		n_calls = state.get('malloc_calls_count', 0) + 1
 		state['malloc_calls_count'] = n_calls
 		if n_calls > 1:
@@ -238,7 +249,7 @@ def ban_multiple_malloc(n, args, state):
 def ban_string_library(n, args, state):
 	if not args.ban_string_library:
 		return None
-	if (n.kind == Kind.DECL_REF_EXPR and
+	if (n.kind == CKind.DECL_REF_EXPR and
 		n.referenced and
 		n.referenced.location and
 		n.referenced.location.file and
@@ -256,11 +267,11 @@ def check_file_expressions(abstract_syntax_tree, args, source_lines):
 def check_for_char_input_function_assigned_to_char_variable(n, source_lines):
 	variable = None
 	function = None
-	if n.kind == Kind.BINARY_OPERATOR:
+	if n.kind == CKind.BINARY_OPERATOR:
 		left, right = n.get_children()
 		variable = is_variable(left)
 		function = is_char_input_function(right)
-	elif n.kind == Kind.VAR_DECL:
+	elif n.kind == CKind.VAR_DECL:
 		variable = n
 		children = list(n.get_children())
 		if children:
@@ -280,11 +291,11 @@ def check_for_char_input_function_assigned_to_char_variable(n, source_lines):
 #
 
 def check_for_raw_ascii_codes(n, args, variables_used_for_chars, source_lines):
-	if n.kind != Kind.BINARY_OPERATOR:
+	if n.kind != CKind.BINARY_OPERATOR:
 		return
 
 	variable = test_children(n, is_variable)
-	integer_literal = test_children(n, lambda x: x.kind == Kind.INTEGER_LITERAL)
+	integer_literal = test_children(n, lambda x: x.kind == CKind.INTEGER_LITERAL)
 	char_expr = test_children(n, lambda x: is_char_expr(x, variables_used_for_chars))
 	operator = get_operator(n)
 
@@ -320,13 +331,13 @@ def test_children(n, condition):
 			return child if value is True else value
 
 def is_variable(n):
-	while n.kind == Kind.UNEXPOSED_EXPR:
+	while n.kind == CKind.UNEXPOSED_EXPR:
 		n = next(n.get_children())
-	if n and n.kind == Kind.DECL_REF_EXPR:
+	if n and n.kind == CKind.DECL_REF_EXPR:
 		return n.referenced
 	
 def is_char_expr(n, variables_used_for_chars):
-	while n.kind == Kind.UNEXPOSED_EXPR:
+	while n.kind == CKind.UNEXPOSED_EXPR:
 		n = next(n.get_children())
 	if n and n.type and n.type.spelling == 'char':
 		return n
@@ -334,13 +345,13 @@ def is_char_expr(n, variables_used_for_chars):
 	if is_char_input_function(n):
 		return n
 	# int variable previously assigned char
-	if n and n.kind == Kind.DECL_REF_EXPR and n.referenced.hash in variables_used_for_chars:
+	if n and n.kind == CKind.DECL_REF_EXPR and n.referenced.hash in variables_used_for_chars:
 		return n
 	
 def is_char_input_function(n):
-	while n and n.kind == Kind.UNEXPOSED_EXPR:
+	while n and n.kind == CKind.UNEXPOSED_EXPR:
 		n = next(n.get_children())
-	if n and n.kind == Kind.CALL_EXPR and n.spelling in ['getchar', 'getc', 'fgetc']:
+	if n and n.kind == CKind.CALL_EXPR and n.spelling in ['getchar', 'getc', 'fgetc']:
 		return n
 	
 # for some reason n.spelling doesn't contain the operator
@@ -509,11 +520,11 @@ def print_indents(C_source_filename, C_source_lines, args, line_indent, show_lin
 def get_indents(n, parent, indent_depth, line_indent):
 	n.parent = parent
 	#print(f'{n.location.file}:{n.extent.start.line}:{n.extent.start.column} {n.kind.name} {n.spelling}')
-	if n.kind == Kind.COMPOUND_STMT:
-		if parent.kind not in [Kind.IF_STMT, Kind.WHILE_STMT, Kind.FOR_STMT, Kind.FUNCTION_DECL]:
+	if n.kind == CKind.COMPOUND_STMT:
+		if parent.kind not in [CKind.IF_STMT, CKind.WHILE_STMT, CKind.FOR_STMT, CKind.FUNCTION_DECL]:
 			return
 		# handle if else if chains
-		while parent.parent and parent.parent.kind == Kind.IF_STMT:
+		while parent.parent and parent.parent.kind == CKind.IF_STMT:
 			parent = parent.parent
 		for child in n.get_children():
 			li = Indent(
@@ -575,11 +586,11 @@ def abstract_syntax_tree_nodes(node, depth=0, parent=None):
 
 def get_functions(root):
 	for function in root.get_children():
-		if (function.kind != Kind.FUNCTION_DECL or
+		if (function.kind != CKind.FUNCTION_DECL or
 			not function.location.file or
 			function.location.file.name != root.displayname or
 			# skip declarations
-			not any(c.kind == Kind.COMPOUND_STMT for c in function.get_children())):
+			not any(c.kind == CKind.COMPOUND_STMT for c in function.get_children())):
 			continue
 		yield function
 		
