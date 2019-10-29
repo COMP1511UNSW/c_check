@@ -72,17 +72,35 @@ def args_parser():
 	parser.add_argument("source_files",  nargs='*', default=[], help="")
 	return parser.parse_args()
 
-
 def get_library_include():
-	# we could use ``clang -print-search-dirs`` here?
-	for library_file in sorted(glob.glob('/usr/lib/x86_64-linux-gnu/libclang-*.so.1'), reverse=True):
-		clang_version = re.sub(r'.*libclang-(.*).so.1', r'\1', library_file)
-		include_directories = glob.glob(f'/usr/lib/llvm-{clang_version}/lib/clang/{clang_version}*/include/')
-		if include_directories:
-			clang.cindex.Config.set_library_file(library_file)
-			return ["-I" + include_directories[0]]
-	return []
-	
+	import shutil, subprocess
+	clang_bin = shutil.which('clang')
+	if not clang_bin:
+		print("c_check: no `clang' binary found!", file=sys.stderr)
+		return []
+
+	def qx(*cmd):
+		return \
+			subprocess \
+			.check_output(cmd, universal_newlines=True) \
+			.splitlines()
+	clang_resource_dir = qx(clang_bin, '-print-resource-dir')[0]
+	include_directory = os.path.join(clang_resource_dir, 'include')
+
+	# it'd sure be nice if clang knew where libclang was...
+	libclang_path = \
+		os.path.dirname(
+			os.path.dirname(clang_resource_dir))
+	libclangs = glob.glob(f'{libclang_path}/libclang.so.*')
+	if not libclangs:
+		print("c_check: can't find `libclang.so'!", file=sys.stderr)
+		return []
+
+	libclang = libclangs[0]
+	clang.cindex.Config.set_library_file(libclang)
+
+	return ['-isystem', include_directory]
+
 def check_file(index, C_source_filename, args, index_parse_args):
 	try:
 		with open(C_source_filename, encoding='utf-8', errors='replace') as f:
