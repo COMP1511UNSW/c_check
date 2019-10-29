@@ -26,10 +26,10 @@ def main():
 	for filename in args.source_files:
 		if filename.endswith('.c'):
 			n_prohibited_code += check_file(index, filename, args, index_parse_args)
-			
+
 	sys.exit(1 if n_prohibited_code else 0)
 
-	
+
 def args_parser():
 	parser = argparse.ArgumentParser()
 
@@ -59,13 +59,13 @@ def args_parser():
 
 	parser.add_argument("--check-indenting",  action="store_true", dest="check_indenting", default=True ,  help="check indenting consistent")
 	parser.add_argument("--no-check-indenting",  action="store_false", dest="check_indenting", help="do not check indenting consistent")
-	
+
 	parser.add_argument("--highlight-incorrect-indenting", action="store_true", dest="highlight_incorrect_indenting", default=True,   help="highlight incorrect indenting")
 	parser.add_argument("--no-highlight-incorrect-indenting", action="store_false", dest="highlight_incorrect_indenting", help="do not highlight incorrect indenting")
 
 	parser.add_argument("--colorize", action="store_true", default=os.environ.get('C_CHECK_COLORIZE_OUTPUT', sys.stdout.isatty()), help="colorize output")
 	parser.add_argument("--no-colorize", action="store_false", dest='colorize', help="do not colorize output")
-	
+
 	parser.add_argument("-I",  dest="include_directories", action="append", default=[], help="add directory for include directories")
 
 	parser.add_argument("-d", "--debug", action="count", default=0 ,  help="show debug ouput")
@@ -168,7 +168,7 @@ def check_prohibited_code(abstract_syntax_tree, args, C_source_lines=[]):
 		# FIXME -but relative link here
 		print("  For more information on C features not permitted in COMP1521 see http://cgi.cse.unsw.edu.au/~cs1511/19T2/resources/style_guide.html")
 		print()
-		
+
 	return n_always_banned_code + n_banned_code
 
 
@@ -177,9 +177,9 @@ def print_diagnostic(n, message, level='warning', source_lines=[]):
 
 	line_number = n.extent.start.line
 	if line_number != n.extent.end.line:
-		# should we display multi-line constructs 
+		# should we display multi-line constructs
 		return
-		
+
 	if not line_number or line_number > len(source_lines):
 		return
 
@@ -280,7 +280,7 @@ def check_file_expressions(abstract_syntax_tree, args, source_lines):
 		variables_used_for_chars = set()
 		for n in abstract_syntax_tree_nodes(abstract_syntax_tree):
 			check_for_char_input_function_assigned_to_char_variable(n, source_lines)
-			check_for_raw_ascii_codes(n, args, variables_used_for_chars, source_lines)          
+			check_for_raw_ascii_codes(n, args, variables_used_for_chars, source_lines)
 
 def check_for_char_input_function_assigned_to_char_variable(n, source_lines):
 	variable = None
@@ -341,8 +341,8 @@ def check_for_raw_ascii_codes(n, args, variables_used_for_chars, source_lines):
 			correct = repr(chr(ascii_code))
 			message = f"{colored(str(ascii_code), 'red')} used, replace with {colored(correct, 'red')}"
 			print_diagnostic(integer_literal, message, level='warning', source_lines=source_lines)
-		
-def test_children(n, condition): 
+
+def test_children(n, condition):
 	for child in n.get_children():
 		value = condition(child)
 		if value:
@@ -353,7 +353,7 @@ def is_variable(n):
 		n = next(n.get_children())
 	if n and n.kind == CKind.DECL_REF_EXPR:
 		return n.referenced
-	
+
 def is_char_expr(n, variables_used_for_chars):
 	while n.kind == CKind.UNEXPOSED_EXPR:
 		n = next(n.get_children())
@@ -365,13 +365,13 @@ def is_char_expr(n, variables_used_for_chars):
 	# int variable previously assigned char
 	if n and n.kind == CKind.DECL_REF_EXPR and n.referenced.hash in variables_used_for_chars:
 		return n
-	
+
 def is_char_input_function(n):
 	while n and n.kind == CKind.UNEXPOSED_EXPR:
 		n = next(n.get_children())
 	if n and n.kind == CKind.CALL_EXPR and n.spelling in ['getchar', 'getc', 'fgetc']:
 		return n
-	
+
 # for some reason n.spelling doesn't contain the operator
 # for a binary operator - so use n.extent to find the appropriate token
 # we could instead use n.extent to drag the chars from the file
@@ -412,7 +412,7 @@ f"""{C_source_filename}: {colored('warning', 'red')}: {lines_description} indent
 	# only warn if tabs and spaced used in same function
 	# to avoid warning when student has been supplied code indented with spaces
 	# and uses tabs for their own code or vice versa
-	
+
 	for function in get_functions(abstract_syntax_tree):
 		function_lines = set(range(function.extent.start.line, function.extent.end.line + 1))
 		tabbed_lines = function_lines & line_indent_type['tabs']
@@ -429,7 +429,7 @@ f"""{C_source_filename}: {colored('warning', 'red')}: function {colored(function
   In COMP1521 we recommend indenting with spaces only, using 4 spaces per indent level.
   Run {colored('1521 replace_tabs '+ C_source_filename,'cyan')} to replace the tabs in {C_source_filename} with spaces.""")
 		return 1
-		
+
 	return 0
 
 # we could condense ranges here
@@ -443,14 +443,14 @@ def describe_line_set(lines):
 		return f"lines {description}, ... are"
 	else:
 		return f"lines {description} are"
-	
+
 def categorize_line(line):
 	if re.match(r'^ +\S', line):
 		return "spaces"
 	if re.match(r'^\t+\S', line):
 		return "tabs"
 	if re.match(r'^[ \t]+\S', line):
-		return "mixed"  
+		return "mixed"
 
 
 # check bodies of of if/while/for/functions consistently indented
@@ -468,9 +468,9 @@ def check_body_indents(C_source_filename, C_source_lines, abstract_syntax_tree, 
 		return incorrectly_indented_lines
 
 	show_lines = expand_lines_shown(C_source_lines, show_lines)
-	
+
 	print_indents(C_source_filename, C_source_lines, args, line_indent, show_lines)
-	
+
 	return incorrectly_indented_lines
 
 # determine the indent_unit for a function
@@ -487,7 +487,7 @@ def check_function_indent(C_source_filename, abstract_syntax_tree, args, file_li
 
 	# FIXME - change extraction of indent_unit to be per function
 	# for small program ensure an indent of 4 has priority
-	#indent_counts[4] += 2  
+	#indent_counts[4] += 2
 	indent_unit = indent_counts.most_common(1)[0][0]
 	show_lines = set()
 	incorrectly_indented_lines = 0
@@ -495,12 +495,12 @@ def check_function_indent(C_source_filename, abstract_syntax_tree, args, file_li
 		file_line_indent.setdefault(line, indent)
 		indent.correct_indent = indent.indent_depth * indent_unit
 		if not indent.correctly_indented():
-			if not args.highlight_incorrect_indenting: 
+			if not args.highlight_incorrect_indenting:
 				print(f"{C_source_filename}:{line} indented {indent.absolute_indent} should be {indent.correct_indent}")
 			incorrectly_indented_lines += 1
 			show_lines = show_lines.union(range(indent.parent.extent.start.line, indent.parent.extent.end.line + 1))
 	return show_lines
-	
+
 # fill in small gaps in lines shown from a file for prettier less confusing output
 
 def expand_lines_shown(C_source_lines, show_lines):
@@ -509,11 +509,11 @@ def expand_lines_shown(C_source_lines, show_lines):
 		if last_line_number + 1 < line_number < last_line_number + 5:
 			show_lines = show_lines.union(range( last_line_number + 1, line_number))
 		last_line_number = line_number
-	
+
 	if len(C_source_lines) < last_line_number + 5:
 		show_lines = show_lines.union(range(last_line_number + 1, len(C_source_lines) + 1))
 	return show_lines
-	
+
 # display correct/incorrect indents in red/green - idea due to AndrewB
 
 def print_indents(C_source_filename, C_source_lines, args, line_indent, show_lines):
@@ -564,7 +564,7 @@ def get_indents(n, parent, indent_depth, line_indent):
 			child_filename = child.location.file.name if child.location.file else child.displayname
 			if child_filename == parent_filename:
 				get_indents(child, n, indent_depth, line_indent)
-			
+
 class Indent():
 	def __init__(self, absolute_indent=None, relative_indent=None, indent_depth=None, parent=None):
 		self.absolute_indent = absolute_indent
@@ -572,14 +572,14 @@ class Indent():
 		self.indent_depth = indent_depth
 		self.parent = parent
 		self.correct_indent = None # calculated later
-		
+
 	def correctly_indented(self):
 		return self.correct_indent == self.absolute_indent
 
 	def get_indent_string(self, line):
 		if self.correctly_indented():
 			on_color = 'on_green'
-			marker = ' ' 
+			marker = ' '
 		else:
 			on_color = 'on_red'
 			marker = '*'
@@ -611,12 +611,12 @@ def get_functions(root):
 			not any(c.kind == CKind.COMPOUND_STMT for c in function.get_children())):
 			continue
 		yield function
-		
+
 def print_ast(node):
 	for n in abstract_syntax_tree_nodes(node):
 		print(' ' * n.depth, end='')
 		print(f"{n.location.file}:{n.extent.start.line}:{n.extent.start.column} {n.kind.name} spelling='{n.spelling}' type='{n.type.spelling}'")
-		
+
 def node_location(n):
 	return f'{n.location.file}:{n.extent.start.line}:{n.extent.start.column}'
 
@@ -627,7 +627,7 @@ def dump(obj):
 		except Exception:
 			pass
 
-		
+
 if __name__ == "__main__":
 	try:
 		sys.exit(1 if main() else 0)
