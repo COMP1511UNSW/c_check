@@ -127,17 +127,20 @@ def check_file(index, C_source_filename, args, index_parse_args):
 
 	C_source_lines = C_source.splitlines()
 
-	for check in [
-		# exit if prohibited code found
-		check_prohibited_code(abstract_syntax_tree, args, C_source_lines),
+	from inspect import signature
 
-		# warn about things like ASCII code
-		check_file_expressions(abstract_syntax_tree, args, C_source_lines),
+	for checker in [
+		check_prohibited_code,
+		check_file_expressions,
 
-		args.check_indenting \
-		and not check_tabs_spaces_mixed(C_source_filename, C_source_lines, abstract_syntax_tree, args) \
-		and not check_body_indents(C_source_filename, C_source_lines, abstract_syntax_tree, args)
+		lambda *xs: args.check_indenting \
+		and not check_tabs_spaces_mixed(*xs) \
+		and not check_body_indents(*xs)
 	]:
+		if len(signature(checker).parameters) == 3:
+			check = checker(abstract_syntax_tree, args, C_source_lines)
+		elif len(signature(checker).parameters) == 4:
+			check = checker(abstract_syntax_tree, args, C_source_lines, C_source_filename)
 		if check: return check
 
 	return 0
@@ -390,7 +393,7 @@ def get_operator(n):
 # check tabs & spaces not mixed in formatting
 
 
-def check_tabs_spaces_mixed(C_source_filename, C_source_lines, abstract_syntax_tree, args):
+def check_tabs_spaces_mixed(abstract_syntax_tree, args, C_source_lines, C_source_filename):
 	line_indent_type = collections.defaultdict(lambda:set())
 	for (line_number, line) in enumerate(C_source_lines):
 		indent_type = categorize_line(line)
@@ -454,7 +457,7 @@ def categorize_line(line):
 # This is done per function, to avoid warnings when student has been supplied code
 # indented with a different indet to which they use
 
-def check_body_indents(C_source_filename, C_source_lines, abstract_syntax_tree, args):
+def check_body_indents(abstract_syntax_tree, args, C_source_lines, C_source_filename):
 	line_indent = {}
 	show_lines = set()
 	for function in get_functions(abstract_syntax_tree):
