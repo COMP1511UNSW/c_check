@@ -127,24 +127,21 @@ def check_file(index, C_source_filename, args, index_parse_args):
 
 	C_source_lines = C_source.splitlines()
 
-	# exit if prohibited code found
-	n_prohibited_code = check_prohibited_code(abstract_syntax_tree, args, C_source_lines)
-	if n_prohibited_code:
-		return n_prohibited_code
+	for check in [
+		# exit if prohibited code found
+		check_prohibited_code(abstract_syntax_tree, args, C_source_lines),
 
-	# warn about things like ASCII code
-	check_file_expressions(abstract_syntax_tree, args, C_source_lines)
-	
-	if not args.check_indenting:
-		return 0
-		
-	# exit if tabs and space mixed
-	if check_tabs_spaces_mixed(C_source_filename, C_source_lines, abstract_syntax_tree, args):
-		return 0
+		# warn about things like ASCII code
+		check_file_expressions(abstract_syntax_tree, args, C_source_lines),
 
-	check_body_indents(C_source_filename, C_source_lines, abstract_syntax_tree, args)
+		args.check_indenting \
+		and not check_tabs_spaces_mixed(C_source_filename, C_source_lines, abstract_syntax_tree, args) \
+		and not check_body_indents(C_source_filename, C_source_lines, abstract_syntax_tree, args)
+	]:
+		if check: return check
+
 	return 0
-	
+
 def check_prohibited_code(abstract_syntax_tree, args, C_source_lines=[]):
 	n_always_banned_code = 0
 	n_banned_code = 0
