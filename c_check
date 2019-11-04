@@ -272,7 +272,7 @@ def ban_string_library(n, args, state):
 		n.referenced.location and
 		n.referenced.location.file and
 		n.referenced.location.file.name == "/usr/include/string.h"):
-		return "strings.h used"
+		return "string.h used"
 
 
 def check_file_expressions(abstract_syntax_tree, args, source_lines):
