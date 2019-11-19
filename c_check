@@ -166,7 +166,7 @@ def check_prohibited_code(abstract_syntax_tree, args, C_source_lines=[]):
 
 	if n_always_banned_code:
 		# FIXME -but relative link here
-		print("  For more information on C features not permitted in COMP1521 see http://cgi.cse.unsw.edu.au/~cs1511/19T2/resources/style_guide.html")
+		print("  For more information on C features not permitted in COMP1521 see https://cgi.cse.unsw.edu.au/~cs1521/19T3/resources/cs1521.style_guide.html")
 		print()
 
 	return n_always_banned_code + n_banned_code
