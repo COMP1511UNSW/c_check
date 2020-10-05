@@ -7,6 +7,8 @@ from clang.cindex import CursorKind as CKind, TypeKind as TKind
 # API description: https://www.pydoc.io/pypi/prophy-1.0.1/autoapi/parsers/clang/cindex/index.html#parsers.clang.cindex.Cursor
 # example code at: https://github.com/coala/coala-bears/blob/master/bears/c_languages/codeclone_detection/ClangCountingConditions.py
 
+from config import variables
+COURSE_CODE = variables['course_code']
 
 def main():
     args = args_parser()
@@ -250,7 +252,7 @@ def check_prohibited_code(abstract_syntax_tree, args, C_source_lines=[]):
             description = check(n, args, state)
             if description:
                 description += (
-                    f" - this is {colored('not permitted', 'red')} in COMP1521"
+                    f" - this is {colored('not permitted', 'red')} in {COURSE_CODE}"
                 )
                 print_diagnostic(
                     n, description, level="error", source_lines=C_source_lines
@@ -274,9 +276,8 @@ def check_prohibited_code(abstract_syntax_tree, args, C_source_lines=[]):
                 n_banned_code += 1
 
     if n_always_banned_code:
-        # FIXME -but relative link here
         print(
-            "  For more information on C features not permitted in COMP1521 see https://cgi.cse.unsw.edu.au/~cs1521/19T3/resources/cs1521.style_guide.html"
+            "  For more information on C features not permitted in " + COURSE_CODE + " see the style guide on WebCMS3."
         )
         print()
 
@@ -546,8 +547,8 @@ def check_tabs_spaces_mixed(
         print(
             f"""{C_source_filename}: {colored('warning', 'red')}: {lines_description} indented with a mixture of tabs and spaces
   This makes the display of your code unreliable including when your tutor is marking for style.
-  In COMP1521 we recommend indenting with spaces only, using 4 spaces per indent level.
-  Run {colored('1521 replace_tabs '+ C_source_filename,'cyan')} to replace the tabs in {C_source_filename} with spaces."""
+  In {COURSE_CODE} we recommend indenting with spaces only, using 4 spaces per indent level.
+  Run {colored('1511 replace_tabs '+ C_source_filename,'cyan')} to replace the tabs in {C_source_filename} with spaces."""
         )
         return 1
 
@@ -570,8 +571,8 @@ def check_tabs_spaces_mixed(
 	{tabbed_description} indented with tabs
 	{spaced_description} indented with spaces
   This makes the display of your code unreliable including when your tutor is marking for style.
-  In COMP1521 we recommend indenting with spaces only, using 4 spaces per indent level.
-  Run {colored('1521 replace_tabs '+ C_source_filename,'cyan')} to replace the tabs in {C_source_filename} with spaces."""
+  In {COURSE_CODE} we recommend indenting with spaces only, using 4 spaces per indent level.
+  Run {colored('1511 replace_tabs '+ C_source_filename,'cyan')} to replace the tabs in {C_source_filename} with spaces."""
         )
         return 1
 
