@@ -1,4 +1,4 @@
-#!/web/cs1521/bin/python3
+#!/web/cs1511/bin/python3
 
 import argparse, collections, glob, os, re, sys
 import clang.cindex
