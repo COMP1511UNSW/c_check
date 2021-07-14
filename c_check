@@ -74,6 +74,7 @@ def args_parser():
 	parser.add_argument("source_files",  nargs='*', default=[], help="")
 	return parser.parse_args()
 
+
 def get_library_include():
 	import shutil, subprocess
 	clang_bin = shutil.which('clang')
@@ -276,11 +277,14 @@ def ban_string_library(n, args, state):
 
 
 def check_file_expressions(abstract_syntax_tree, args, source_lines):
+	warnings = 0
 	for function in get_functions(abstract_syntax_tree):
-		variables_used_for_chars = set()
-		for n in abstract_syntax_tree_nodes(abstract_syntax_tree):
-			check_for_char_input_function_assigned_to_char_variable(n, source_lines)
-			check_for_raw_ascii_codes(n, args, variables_used_for_chars, source_lines)
+		variables_used_for_ASCII = set()
+		for n in abstract_syntax_tree_nodes(function):
+			warnings += check_for_char_input_function_assigned_to_char_variable(n, source_lines)
+			warnings += check_for_raw_ascii_codes(n, args, variables_used_for_ASCII, source_lines)
+	return warnings
+
 
 def check_for_char_input_function_assigned_to_char_variable(n, source_lines):
 	variable = None
@@ -297,50 +301,69 @@ def check_for_char_input_function_assigned_to_char_variable(n, source_lines):
 	if variable and function and variable.type.spelling == 'char':
 		message = f" return value of {function.spelling} assigned to {colored('char', 'red')} variable '{variable.spelling}', change the type of '{variable.spelling}' to {colored('int', 'red')}"
 		print_diagnostic(n, message, level='warning', source_lines=source_lines)
+		return 1
+	return 0
+	
+def check_for_raw_ascii_codes(n, args, variables_used_for_ASCII, source_lines):
+	"""
+		issue warnings for ASCII codes represented as integer constants,
+		e.g.: code like this
 
-# issue warnings for ASCII codes represented as integer constants,
-# e.g.: code like this
-#
-# int c = getchar();
-# if (c == 10) {
-#     ....
-#
-# track variables like which are used toholfd char values
-#
+			int c = getchar();
+			if (c == 10) {
 
-def check_for_raw_ascii_codes(n, args, variables_used_for_chars, source_lines):
+		by tracking variables which are used to hold char values
+	"""
+
+	if n.kind == CKind.VAR_DECL:
+		try:
+			initializer = next(n.get_children())
+			if is_char_expr(initializer, variables_used_for_ASCII):
+				variables_used_for_ASCII.add(n.hash)
+		except StopIteration:
+			pass
+		return 0
+		
 	if n.kind != CKind.BINARY_OPERATOR:
-		return
+		return 0
 
-	variable = test_children(n, is_variable)
-	integer_literal = test_children(n, lambda x: x.kind == CKind.INTEGER_LITERAL)
-	char_expr = test_children(n, lambda x: is_char_expr(x, variables_used_for_chars))
 	operator = get_operator(n)
 
-	if variable and char_expr:
-		# note variable has been assigned result of getchar etc.
-		variables_used_for_chars.add(variable.hash)
+	if operator == '=':
+		(left, right) = n.get_children()
+		variable = is_variable(left)
+		if variable:
+			if is_char_expr(right, variables_used_for_ASCII):
+				# note variable has been assigned result of getchar etc.
+				variables_used_for_ASCII.add(variable.hash)
+			else:
+				# variable previously assigned result of getchar is being reused for different purpose
+				# so delete from variables being tracked
+				variables_used_for_ASCII.discard(variable.hash)
+		return 0
+		
+	if operator not in ['==', '!=', '<=', '>=', '<', '>']:
+		return 0
+		
+	integer_literal = test_children(n, lambda x: x.kind == CKind.INTEGER_LITERAL)
+	if not integer_literal:
+		return 0
+	char_expr = test_children(n, lambda x: is_char_expr(x, variables_used_for_ASCII))
+	if not char_expr:
+		return 0
 
-	elif variable and operator == '=':
-		# variable previously assigned result of getchar is being reused for different purpose
-		# so delete from variables being tracked
-		is_variable(next(n.get_children()))
-		variables_used_for_chars.discard(variable.hash)
-
-	elif (
-		integer_literal and
-		operator in ['==', '!=', '<=', '>=', '<', '>'] and
-		char_expr):
-
-		#  variable previously assigned result of getchar etc. is  compared to integer literal
-		try:
-			ascii_code = int(next(integer_literal.get_tokens()).spelling)
-		except ValueError:
-			ascii_code = 0
+	#  variable previously assigned result of getchar etc. is  compared to integer literal
+	try:
+		ascii_code = int(next(integer_literal.get_tokens()).spelling)
 		if 6 < ascii_code < 13 or 31 < ascii_code < 126:
 			correct = repr(chr(ascii_code))
-			message = f"{colored(str(ascii_code), 'red')} used, replace with {colored(correct, 'red')}"
+			message = f"ASCII code {colored(str(ascii_code), 'red')} used, replace with {colored(correct, 'red')}"
 			print_diagnostic(integer_literal, message, level='warning', source_lines=source_lines)
+			return 1
+	except ValueError:
+		pass
+	return 0
+	
 
 def test_children(n, condition):
 	for child in n.get_children():
@@ -354,7 +377,7 @@ def is_variable(n):
 	if n and n.kind == CKind.DECL_REF_EXPR:
 		return n.referenced
 
-def is_char_expr(n, variables_used_for_chars):
+def is_char_expr(n, variables_used_for_ASCII):
 	while n.kind == CKind.UNEXPOSED_EXPR:
 		n = next(n.get_children())
 	if n and n.type and n.type.spelling == 'char':
@@ -363,7 +386,7 @@ def is_char_expr(n, variables_used_for_chars):
 	if is_char_input_function(n):
 		return n
 	# int variable previously assigned char
-	if n and n.kind == CKind.DECL_REF_EXPR and n.referenced.hash in variables_used_for_chars:
+	if n and n.kind == CKind.DECL_REF_EXPR and n.referenced.hash in variables_used_for_ASCII:
 		return n
 
 def is_char_input_function(n):
@@ -389,9 +412,7 @@ def get_operator(n):
 			return t.spelling
 
 
-
 # check tabs & spaces not mixed in formatting
-
 
 def check_tabs_spaces_mixed(abstract_syntax_tree, args, C_source_lines, C_source_filename):
 	line_indent_type = collections.defaultdict(lambda:set())
