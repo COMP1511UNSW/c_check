@@ -1,7 +1,12 @@
 #!/bin/sh
 
-# wrap expand so that students are unlikely to lose data
-# assumes ttabs are 4 spaces
+# replace tabs with spaces in files in given as argument
+#
+# wraps expand so that students are unlikely to lose data
+# assumes tabs are 4 spaces
+
+TAB_SIZE=4
+PATH=/bin:/usr/bin:$PATH
 
 for file in "$@"
 do
@@ -24,14 +29,15 @@ do
 			echo "$0: no tabs found in $file"
 		else
 			echo "mv $file $backup_file"
-			echo "expand -it 4 $backup_file >$file"
+			echo "expand -it $TAB_SIZE $backup_file >$file"
 			chmod --reference="$backup_file" "$file"
 			echo "$0: tabs replaced in '$file', original contents left in '$backup_file'"
 		fi
 	else
-		echo "$0: tab expansion failed" 1>&2
 		mv "$backup_file" "$file"
+		echo "$0: tab expansion failed" 1>&2
 		exit 1
 	fi
 done
+
 exit 0

@@ -1,0 +1,3 @@
+union a {
+    int b;
+};

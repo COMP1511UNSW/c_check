@@ -1,0 +1,1 @@
+Some simple tests using https://github.com/COMP1511UNSW/autotest

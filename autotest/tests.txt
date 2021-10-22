@@ -1,0 +1,64 @@
+files=c_check.py
+compare_only_characters=abcdefghijklmopqrstuvwxyz
+ignore_blank_lines=1
+ignore_case=1
+
+nothing               arguments=global_variable.c 
+warning               arguments=--warning global-variable global_variable.c 
+not_recommended       arguments=--not-recommended global-variable global_variable.c
+error                 arguments=--error global-variable global_variable.c
+not_permitted         arguments=--not-permitted global-variable global_variable.c
+cancel                arguments=--not-permitted global-variable --do-not-check global-variable global_variable.c
+commas                arguments=--not-permitted goto,global-variable,ternary global_variable.c
+where_text            arguments=--not-permitted global-variable --where-text 'in this exercise' global_variable.c
+extra_text            arguments=--not-permitted global-variable --extra-text 'SOME EXTRA TEXT' global_variable.c
+
+integer_as_ascii_code arguments=--not-permitted integer-ascii-code integer_ascii_code.c
+assign_getchar_char   arguments=--not-permitted assign-getchar-char assign_getchar_char.c
+
+assert                arguments=--not-permitted ternary assert.c
+break                 arguments=--not-permitted break break.c
+char_array            arguments=--not-permitted array char_array.c
+comma                 arguments=--not-permitted comma comma.c
+const_global_variable arguments=--not-permitted global-variable const_global_variable.c
+continue              arguments=--not-permitted continue continue.c
+double_malloc         arguments=--not-permitted multiple-malloc double_malloc.c
+do_while              arguments=--not-permitted do_while do_while.c
+goto                  arguments=--not-permitted goto goto.c
+int_array             arguments=--not-permitted array int_array.c
+non_char_array        arguments=--not-permitted non-char-array char_array.c
+single_malloc         arguments=--not-permitted multiple-malloc single_malloc.c
+static_local_variable arguments=--not-permitted static_local_variable static_local_variable.c
+string                arguments=--not-permitted string-library string.c
+unistd                arguments=--not-permitted unistd-library unistd.c
+switch                arguments=--not-permitted switch switch.c
+ternary               arguments=--not-permitted ternary ternary.c
+union                 arguments=--not-permitted union union.c
+
+badly_indent          arguments=--warning indenting badly_indented.c
+mixed_tabs_and_spaces arguments=--warning indenting mixed_tabs_and_spaces.c
+warning expected_stdout="global_variable.c:3:1 warning: variable 'g' is a global variable\nint g;\n^~~~~\n"
+not_recommended expected_stdout="global_variable.c:3:1 warning: variable 'g' is a global variable - this is not recommended\nint g;\n^~~~~\n"
+error expected_stdout="global_variable.c:3:1 error: variable 'g' is a global variable\nint g;\n^~~~~\n"
+not_permitted expected_stdout="global_variable.c:3:1 error: variable 'g' is a global variable - this is not permitted\nint g;\n^~~~~\n"
+commas expected_stdout="global_variable.c:3:1 error: variable 'g' is a global variable - this is not permitted\nint g;\n^~~~~\n"
+where_text expected_stdout="global_variable.c:3:1 error: variable 'g' is a global variable - this is not permitted in this exercise\nint g;\n^~~~~\n"
+extra_text expected_stdout="global_variable.c:3:1 error: variable 'g' is a global variable - this is not permitted\nint g;\n^~~~~\nSOME EXTRA TEXT\n"
+integer_as_ascii_code expected_stdout="integer_ascii_code.c:10:14 warning: ASCII code 10 used, replace with '\\n'\n\twhile (c != 10) {\n             ^~\ninteger_ascii_code.c:15:11 warning: ASCII code 65 used, replace with 'A'\n\tif (d >= 65 && d <= 90) {\n          ^~\ninteger_ascii_code.c:15:22 warning: ASCII code 90 used, replace with 'Z'\n\tif (d >= 65 && d <= 90) {\n                     ^~\n"
+assign_getchar_char expected_stdout="assign_getchar_char.c:5:2 error:  return value of getchar assigned to char variable 'c', change the type of 'c' to int - this is not permitted\n\tc = getchar();\n ^~~~~~~~~~~~~\n"
+break expected_stdout='break.c:3:3 error: break statement used - this is not permitted\n\t\tbreak;\n  ^~~~~\n'
+char_array expected_stdout='char_array.c:2:2 error: array used - this is not permitted\n\tchar array[3];\n ^~~~~~~~~~~~~\n'
+comma expected_stdout='comma.c:2:9 error: comma operator used - this is not permitted\n\treturn main(),1;\n        ^~~~~~~~\n'
+continue expected_stdout='continue.c:3:3 error: continue statement used - this is not permitted\n\t\tcontinue;\n  ^~~~~~~~\n'
+double_malloc expected_stdout='double_malloc.c:3:2 error: malloc called - this is not permitted\n\tmalloc(4);\n ^~~~~~~~~\n'
+do_while expected_stdout='do_while.c:2:2 error: do while statement used - this is not permitted\n'
+goto expected_stdout='goto.c:3:2 error: goto statement used - this is not permitted\n\tgoto a;\n ^~~~~~\n'
+int_array expected_stdout='int_array.c:2:2 error: array used - this is not permitted\n\tint array[3];\n ^~~~~~~~~~~~\n'
+static_local_variable expected_stdout="static_local_variable.c:2:2 error: variable 'v' is a static variable - this is not permitted\n\tstatic int v;\n ^~~~~~~~~~~~\n"
+string expected_stdout='string.c:4:9 error: string.h used - this is not permitted\n\treturn strlen("");\n        ^~~~~~\n'
+unistd expected_stdout='unistd.c:4:9 error: unistd.h used - this is not permitted\n\treturn read(0,0,0);\n        ^~~~\n'
+switch expected_stdout='switch.c:2:2 error: switch statement used - this is not permitted\n'
+ternary expected_stdout="ternary.c:2:9 error: ternary 'if' ?: used - this is not permitted\n\treturn argc ? 1 : 0;\n        ^~~~~~~~~~~~\n"
+union expected_stdout='union.c:1:1 error: union used - this is not permitted\n'
+badly_indent expected_stdout='badly_indented.c: warning: some lines are not consistently indented.\nIncorrectly indented lines are marked with an *.\n     1  int main(void) {\n     2* return 0;\n     3      return 1;\n     4*         return 2;\n     5  }\n'
+mixed_tabs_and_spaces expected_stdout='mixed_tabs_and_spaces.c: warning: function main is indented with a mixture of tabs and spaces:\n\tline 1 is indented with tabs\n\tline 2 is indented with spaces\nmixed_tabs_and_spaces.c: warning: some lines are not consistently indented.\nIncorrectly indented lines are marked with an *.\n     1  int main(void) {\n     2  \treturn 0;\n     3*     return 1;\n     4  }\n'
