@@ -4,6 +4,8 @@
 #
 # wraps expand so that students are unlikely to lose data
 # assumes tabs are 4 spaces
+#
+# Repo: https://github.com/COMP1511UNSW/c_check
 
 TAB_SIZE=4
 PATH=/bin:/usr/bin:$PATH

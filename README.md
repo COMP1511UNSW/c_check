@@ -11,7 +11,8 @@ It can also:
 * warn if integer constants are used for ASCII codes , e.g `10` instead of `'\n'`
 * warn if functions like getchar are assigned to an int
 
-For example:
+
+# Examples
 
 ```
 $ c_check.py --not-permitted=global_variable,goto,static_local_variable \
@@ -26,8 +27,20 @@ example.c:3:2 error: goto statement used - this is not permitted in COMP1511
 See the COMP1511 style guide at https://example.com
 ```
 
-Available checkers include:
+Students would normally run c_check via a wrapper script with settings appropriate for their course ([example wrapper script here](c_check.sh)), e.g:
 
+```
+$ 1511_c_check example.c
+example.c:3:2 error: goto statement used - this is not permitted in COMP1511
+	goto a;
+    ^~~~~~
+See the COMP1511 style guide at https://example.com
+```
+
+
+# Checkers
+
+Available checkers include:
 
 |     |     |
 | --- | --- |

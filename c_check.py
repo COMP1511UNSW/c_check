@@ -14,7 +14,8 @@
 # * warn if functions like getchar are assigned to an int
 #
 # Author: Andrew Taylor (andrewt@unsw.edu.au)
-
+#
+# Repo: https://github.com/COMP1511UNSW/c_check
 
 import argparse, collections, glob, os, re, sys
 import clang.cindex
