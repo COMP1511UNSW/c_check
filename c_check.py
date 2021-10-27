@@ -81,7 +81,6 @@ def main():
 			from termcolor import colored as colored
 		except ImportError:
 			colored = lambda x, *args, **kwargs: x
-			print('hello')
 			args.colorize = False
 
 		# colorama if available should improve WIN32 output

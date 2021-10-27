@@ -12,7 +12,7 @@ extra_text="
 mixed_indenting_text="
   This makes the display of your code unreliable including when your tutor is marking for style.
   In COMP1511 we recommend indenting with spaces only, using 4 spaces per indent level.
-  You can use replace the tabs in C_source with this command: replace_tabs
+  You can replace the tabs in C source with this command: replace_tabs
   For example to replace the tabs in example.c run:  replace_tabs example.c
 "
 
