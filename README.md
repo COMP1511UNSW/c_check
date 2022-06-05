@@ -53,8 +53,7 @@ Available checkers include:
 | **`global_variable`**         | check global variables used |
 | **`goto`**                     | check if goto used |
 | **`indenting`**                | check indenting consistent with functions, and tabs/spaces not mixed within function |
-| **`integer_ascii_code`**       | check integer constants not used for ASCII codes e.g. 10 instead of ' |
-| ' |
+| **`integer_ascii_code`**       | check integer constants not used for ASCII codes e.g. 10 instead of '\n' |
 | **`multiple_malloc`**          | check if malloc is called in more than 1 location  (for exercises where this is not permitted) |
 | **`non_char_array`**          | check for use of array other than char array  (for exercises where this is not permitted) |
 | **`static_local_variable`**   | check for use of static local variables |
