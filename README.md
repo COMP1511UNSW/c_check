@@ -1,6 +1,6 @@
 
 **`c_check`** can be used to inspect  C programs in introductory programing courses
-for features that either, 
+for features that either,
 
 * a student should not be using generally (e.g. goto), or
 * are not permitted for a specific exercises  (perhaps array)
@@ -68,8 +68,6 @@ Available checkers include:
 # Author
 
 Andrew Taylor (andrewt@unsw.edu.au)
-
-Except help_cs50.py  is almost entirely from  https://github.com/cs50/help50-server/blob/master/helpers/clang.py
 
 # License
 
